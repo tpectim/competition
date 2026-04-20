@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>競賽管理系統 - 隱藏首輪輪空版</title>
+    <title>競賽管理系統 - 完美狀態修正版</title>
     <style>
         :root {
             --bg-color: #1a1a1e;
@@ -14,6 +14,8 @@
             --highlight: #3b82f6;
             --win-color: #10b981;
             --btn-hover: #2563eb;
+            --name-bg: #3f3f5a; 
+            --name-win-bg: rgba(16, 185, 129, 0.15); 
         }
 
         body {
@@ -46,7 +48,6 @@
             width: 100%; height: 3px; background-color: var(--highlight); border-radius: 3px;
         }
 
-        /* 視圖切換 */
         .view-section { display: none; width: 100%; max-width: 1200px; justify-content: center; }
         .view-section.active { display: flex; }
 
@@ -88,15 +89,18 @@
             box-shadow: 0 4px 6px rgba(0,0,0,0.3); border: 1px solid transparent;
         }
         
-        /* 核心 CSS：隱形但不消失佔位 */
         .spacer { visibility: hidden !important; pointer-events: none !important; }
 
-        .player-row { padding: 12px 15px; display: flex; justify-content: space-between; font-size: 16px; }
+        .player-row { padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; font-size: 16px; }
         .player-row:first-child { border-bottom: 1px solid var(--border-color); }
-        .player-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100px; }
-        .player-name.empty { color: var(--text-muted); font-style: italic; }
+        
+        .player-name { 
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 110px; 
+            background-color: var(--name-bg); padding: 4px 8px; border-radius: 6px;
+        }
+        .player-name.empty { background-color: transparent; color: var(--text-muted); font-style: italic; padding: 4px 0; }
+        .winner .player-name { background-color: var(--name-win-bg); color: var(--win-color); font-weight: bold; }
         .player-score { font-weight: bold; color: var(--highlight); }
-        .winner .player-name { color: var(--win-color); font-weight: bold; }
 
         .third-place-wrapper { margin-top: 80px; }
 
@@ -138,10 +142,10 @@
 </head>
 <body>
 
-    <h1>🏆 競賽管理系統</h1>
+    <h1>⚾ 一起來棒賽</h1>
 
     <div class="nav-tabs">
-        <button class="tab-btn active" onclick="switchTab('manage')" id="tab-manage">⚙️ 管理與設定</button>
+        <button class="tab-btn active" onclick="switchTab('manage')" id="tab-manage">⚙️ 設定</button>
         <button class="tab-btn" onclick="switchTab('bracket')" id="tab-bracket">📊 賽程表</button>
     </div>
 
@@ -182,9 +186,9 @@
         <div class="modal-content" style="width: 400px;">
             <h2 style="text-align:center; color:#fbbf24;">最終榮耀榜</h2>
             <div class="podium-container">
-                <div class="podium-place second"><div class="podium-rank">🥈 亞軍</div><div id="rank-2"></div></div>
-                <div class="podium-place first"><div class="podium-rank">🥇 冠軍</div><div id="rank-1"></div></div>
-                <div class="podium-place third"><div class="podium-rank">🥉 季軍</div><div id="rank-3"></div></div>
+                <div class="podium-place second"><div class="podium-rank">🥈 亞軍</div><div id="rank-2" style="font-weight:bold;"></div></div>
+                <div class="podium-place first"><div class="podium-rank">🥇 冠軍</div><div id="rank-1" style="font-weight:bold;"></div></div>
+                <div class="podium-place third"><div class="podium-rank">🥉 季軍</div><div id="rank-3" style="font-weight:bold;"></div></div>
             </div>
             <button class="btn btn-primary" style="width:100%;" onclick="closeModal('leaderboardModal')">關閉</button>
         </div>
@@ -225,7 +229,7 @@
             createMatch("S1", s[0], s[1], "F", true, 1);
             createMatch("S2", s[2], s[3], "F", false, 1);
             createMatch("F", null, null, null, true, 2);
-            createMatch("T", null, null, null, false, "third");
+            if (n === 4) createMatch("T", null, null, null, false, "third");
         } else if (n <= 8) {
             let s = Array(8).fill(null); let idx=0;
             for(let i=0; i<4; i++) if(idx<n) s[i*2]=names[idx++];
@@ -246,13 +250,27 @@
             createMatch("S1", null, null, "F", true, 3); createMatch("S2", null, null, "F", false, 3);
             createMatch("F", null, null, null, true, 4); createMatch("T", null, null, null, false, "third");
         }
+
+        // 精準處理初始輪空，避免後續賽事因等待前置賽事而誤判為輪空
         Object.values(state.matches).forEach(m => {
-            if (m.p1 && !m.p2 && !m.p1.includes('勝者')) { m.p2='輪空'; m.winner=m.p1; m.s1='W'; m.s2=''; pushWinnerForward(m.id); }
-            else if (!m.p1 && m.p2 && !m.p2.includes('勝者')) { m.p1='輪空'; m.winner=m.p2; m.s1=''; m.s2='W'; pushWinnerForward(m.id); }
+            const p1Feeder = Object.values(state.matches).find(x => x.nextId === m.id && x.isTop);
+            const p2Feeder = Object.values(state.matches).find(x => x.nextId === m.id && !x.isTop);
+
+            if (m.p1 && !m.p2 && !p2Feeder) {
+                m.p2 = '輪空'; m.winner = m.p1; m.s1 = 'W'; m.s2 = ''; 
+                m.isInitialBye = true; // 標記為結構性輪空，用於後續隱藏
+                pushWinnerForward(m.id);
+            } else if (!m.p1 && m.p2 && !p1Feeder) {
+                m.p1 = '輪空'; m.winner = m.p2; m.s1 = ''; m.s2 = 'W'; 
+                m.isInitialBye = true;
+                pushWinnerForward(m.id);
+            }
         });
     }
 
-    function createMatch(id, p1, p2, nextId, isTop, round) { state.matches[id] = { id, p1, p2, s1: null, s2: null, winner: null, nextId, isTop, round }; }
+    function createMatch(id, p1, p2, nextId, isTop, round) { 
+        state.matches[id] = { id, p1, p2, s1: null, s2: null, winner: null, nextId, isTop, round, isInitialBye: false }; 
+    }
 
     function renderBracket() {
         const root = document.getElementById('bracket-root');
@@ -260,16 +278,12 @@
         if(Object.keys(state.matches).length === 0) return;
 
         const rounds = [...new Set(Object.values(state.matches).map(m => m.round))].filter(r => r !== 'third').sort((a,b) => a-b);
-        const minRound = rounds[0]; // 取得第一輪的數值
 
         rounds.forEach(r => {
             const col = document.createElement('div'); col.className = `round round-${r}`;
             Object.values(state.matches).filter(m => m.round === r).forEach(match => {
-                // 核心邏輯：如果是第一輪 (minRound) 且有輪空者，設為隱形
-                const isByeMatch = (match.p1 === '輪空' || match.p2 === '輪空');
-                const isFirstRoundBye = (match.round === minRound && isByeMatch);
-                
-                const mHTML = createMatchHTML(match, isFirstRoundBye);
+                // 只有被系統標記為「初始結構輪空」的場次才會隱形
+                const mHTML = createMatchHTML(match, match.isInitialBye);
                 col.appendChild(mHTML);
             });
             root.appendChild(col);
@@ -289,15 +303,25 @@
         const c = document.createElement('div');
         c.className = `match-container ${hide ? 'spacer' : ''}`;
         c.id = `match-container-${match.id}`;
-        const p1Name = match.p1 || '等待中...'; const p2Name = match.p2 || '等待中...';
+        
+        const p1Name = match.p1 || '等待中...'; 
+        const p2Name = match.p2 || '等待中...';
+        
+        const p1EmptyClass = (p1Name === '等待中...' || p1Name === '輪空') ? 'empty' : '';
+        const p2EmptyClass = (p2Name === '等待中...' || p2Name === '輪空') ? 'empty' : '';
+
+        // 修正 0 分消失的問題
+        const s1Display = (match.s1 !== null && match.s1 !== '') ? match.s1 : '';
+        const s2Display = (match.s2 !== null && match.s2 !== '') ? match.s2 : '';
+
         c.innerHTML = `
             <div class="match-label">ID: ${match.id === 'T' ? '季軍' : match.id}</div>
             <div class="match-card" onclick="openModal('${match.id}')">
-                <div class="player-row ${match.winner === match.p1 && match.winner ? 'winner' : ''}">
-                    <span class="player-name">${p1Name}</span><span class="player-score">${match.s1 || ''}</span>
+                <div class="player-row ${match.winner === match.p1 && match.winner && !hide ? 'winner' : ''}">
+                    <span class="player-name ${p1EmptyClass}">${p1Name}</span><span class="player-score">${s1Display}</span>
                 </div>
-                <div class="player-row ${match.winner === match.p2 && match.winner ? 'winner' : ''}">
-                    <span class="player-name">${p2Name}</span><span class="player-score">${match.s2 || ''}</span>
+                <div class="player-row ${match.winner === match.p2 && match.winner && !hide ? 'winner' : ''}">
+                    <span class="player-name ${p2EmptyClass}">${p2Name}</span><span class="player-score">${s2Display}</span>
                 </div>
             </div>`;
         return c;
@@ -308,13 +332,9 @@
         if(!svg || !root) return;
         svg.style.width = root.scrollWidth + 'px'; svg.style.height = root.scrollHeight + 'px'; svg.innerHTML = '';
         
-        const rounds = [...new Set(Object.values(state.matches).map(m => m.round))].filter(r => r !== 'third').sort((a,b) => a-b);
-        const minRound = rounds[0];
-
         Object.values(state.matches).forEach(m => {
-            const isFirstRoundBye = (m.round === minRound && (m.p1 === '輪空' || m.p2 === '輪空'));
-            // 如果是第一輪的輪空，不畫連線
-            if (m.nextId && state.matches[m.nextId] && !isFirstRoundBye) {
+            // 不對隱形的初始輪空場次畫連線
+            if (m.nextId && state.matches[m.nextId] && !m.isInitialBye) {
                 const el1 = document.getElementById(`match-container-${m.id}`);
                 const el2 = document.getElementById(`match-container-${m.nextId}`);
                 if (el1 && el2) {
@@ -364,18 +384,30 @@
             const nm = state.matches[m.nextId];
             if (m.isTop) nm.p1 = w; else nm.p2 = w;
         }
+        // 只有 S1, S2 的敗者才會進入季軍賽 (T)，初始輪空產生的敗者(輪空)絕對進不去
         if (id === "S1" && state.matches["T"]) state.matches["T"].p1 = l;
         if (id === "S2" && state.matches["T"]) state.matches["T"].p2 = l;
     }
 
     function checkTournamentCompletion() {
         const f = state.matches["F"], t = state.matches["T"], n = state.players.length;
-        const isComplete = (n === 2) ? (f && f.winner) : (f && f.winner && t && t.winner);
+        const isComplete = (n <= 3) ? (f && f.winner) : (f && f.winner && t && t.winner);
         if (isComplete) {
             document.getElementById('showResultsBtn').style.display = 'block';
             document.getElementById('rank-1').innerText = f.winner;
             document.getElementById('rank-2').innerText = f.winner === f.p1 ? f.p2 : f.p1;
-            document.getElementById('rank-3').innerText = (n === 2) ? '無' : t.winner;
+            
+            // 特殊人數處理：2人無季軍，3人直接取 S2 敗者為季軍
+            if (n === 2) {
+                document.getElementById('rank-3').innerText = '無';
+            } else if (n === 3) {
+                const s2 = state.matches["S2"];
+                document.getElementById('rank-3').innerText = s2.winner === s2.p1 ? s2.p2 : s2.p1;
+            } else {
+                document.getElementById('rank-3').innerText = t.winner;
+            }
+        } else {
+            document.getElementById('showResultsBtn').style.display = 'none';
         }
     }
 
