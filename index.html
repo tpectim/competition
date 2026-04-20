@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>深色版 - 單淘汰賽制競賽系統 (手動結算版)</title>
+    <style>
+        /* 深色主題配色 */
+        :root {
+            --bg-color: #1a1a1e;
+            --card-bg: #2d2d3a;
+            --border-color: #4a4a5a;
+            --text-main: #e2e8f0;
+            --text-muted: #94a3b8;
+            --highlight: #3b82f6;
+            --win-color: #10b981;
+            --btn-hover: #2563eb;
+        }
+
+        body {
+            font-family: "Microsoft JhengHei", sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 26px;
+            margin-bottom: 20px;
+            letter-spacing: 2px;
+        }
+
+        /* 導覽列 */
+        .nav-tabs {
+            display: flex; gap: 20px; margin-bottom: 30px;
+            border-bottom: 1px solid var(--border-color); padding-bottom: 10px;
+            width: 100%; max-width: 800px; justify-content: center;
+        }
+
+        .tab-btn {
+            background: transparent; color: var(--text-muted); border: none;
+            font-size: 18px; cursor: pointer; padding: 10px 20px;
+            transition: all 0.3s; position: relative;
+        }
+
+        .tab-btn:hover { color: var(--text-main); }
+        .tab-btn.active { color: var(--highlight); font-weight: bold; }
+        .tab-btn.active::after {
+            content: ''; position: absolute; bottom: -11px; left: 0;
+            width: 100%; height: 3px; background-color: var(--highlight); border-radius: 3px;
+        }
+
+        /* 視圖切換 */
+        .view-section { display: none; width: 100%; max-width: 1200px; justify-content: center; }
+        .view-section.active { display: flex; }
+
+        /* 管理頁面 */
+        .manage-card {
+            background: var(--card-bg); padding: 30px; border-radius: 12px;
+            width: 100%; max-width: 600px; box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            border: 1px solid var(--border-color);
+        }
+        .manage-card p { color: var(--text-muted); font-size: 14px; margin-bottom: 15px;}
+        textarea {
+            width: 100%; box-sizing: border-box; height: 180px; padding: 15px;
+            background: var(--bg-color); color: var(--text-main);
+            border: 1px solid var(--border-color); border-radius: 8px;
+            font-size: 16px; resize: vertical; margin-bottom: 20px;
+        }
+        .action-buttons { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center;}
+        .btn {
+            flex: 1; min-width: 120px; padding: 12px; border: none; border-radius: 6px;
+            cursor: pointer; font-weight: bold; font-size: 15px; transition: 0.2s;
+            text-align: center; color: white;
+        }
+        .btn-primary { background: var(--highlight); }
+        .btn-primary:hover { background: var(--btn-hover); }
+        .btn-success { background: #059669; }
+        .btn-warning { background: #d97706; }
+        .btn-cancel { background: #475569; }
+
+        /* 賽程表容器 */
+        .bracket-wrapper {
+            display: flex; gap: 60px; position: relative; overflow-x: auto; 
+            padding: 20px 40px; min-height: 600px;
+        }
+        
+        #bracket-lines { position: absolute; top: 0; left: 0; z-index: 0; pointer-events: none; }
+
+        .round { 
+            display: flex; flex-direction: column; justify-content: space-around; gap: 30px; 
+            position: relative; z-index: 1;
+        }
+
+        /* 比賽卡片 */
+        .match-container { display: flex; flex-direction: column; position: relative; }
+        .match-label { font-size: 12px; color: var(--text-muted); margin-bottom: 4px; padding-left: 4px; }
+        .match-card {
+            background-color: var(--card-bg); border-radius: 8px; width: 180px; cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: transform 0.2s, border-color 0.2s;
+            border: 1px solid transparent;
+        }
+        .match-card:hover { border-color: var(--text-muted); transform: translateY(-2px); }
+        
+        .player-row { padding: 12px 15px; display: flex; justify-content: space-between; font-size: 16px; }
+        .player-row:first-child { border-bottom: 1px solid var(--border-color); }
+        .player-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100px; }
+        .player-name.empty { color: var(--text-muted); font-style: italic; }
+        .player-score { font-weight: bold; color: var(--highlight); }
+        .winner .player-name { color: var(--win-color); font-weight: bold; }
+
+        /* 季軍賽容器 */
+        .third-place-wrapper { margin-top: 80px; }
+
+        /* Modal */
+        .modal-overlay {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); justify-content: center; align-items: center; z-index: 100;
+        }
+        .modal-content {
+            background: var(--card-bg); padding: 30px; border-radius: 12px; width: 320px;
+            border: 1px solid var(--border-color); position: relative;
+        }
+        .modal-title { text-align: center; margin-top: 0; margin-bottom: 20px; }
+        .score-input-group { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; font-size: 18px; }
+        .score-input-group input {
+            width: 60px; padding: 8px; text-align: center; background: var(--bg-color);
+            border: 1px solid var(--border-color); color: white; border-radius: 4px; font-size: 16px;
+        }
+
+        /* 排行榜頒獎台專屬樣式 */
+        .podium-container {
+            display: flex; justify-content: center; align-items: flex-end; gap: 10px;
+            margin: 40px 0 20px 0; height: 160px;
+        }
+        .podium-place {
+            background: var(--bg-color); border: 1px solid var(--border-color);
+            border-radius: 8px 8px 0 0; width: 90px; display: flex; flex-direction: column;
+            justify-content: flex-start; align-items: center; padding-top: 15px;
+            box-shadow: 0 -5px 15px rgba(0,0,0,0.4); text-align: center;
+        }
+        .podium-place.first { 
+            height: 150px; border-color: #fbbf24; z-index: 3;
+            background: linear-gradient(180deg, rgba(251,191,36,0.15) 0%, var(--bg-color) 100%);
+        }
+        .podium-place.second { 
+            height: 110px; border-color: #9ca3af; z-index: 2;
+            background: linear-gradient(180deg, rgba(156,163,175,0.15) 0%, var(--bg-color) 100%);
+        }
+        .podium-place.third { 
+            height: 80px; border-color: #b45309; z-index: 1;
+            background: linear-gradient(180deg, rgba(180,83,9,0.15) 0%, var(--bg-color) 100%);
+        }
+        .podium-rank { font-size: 14px; margin-bottom: 8px; font-weight: bold;}
+        .first .podium-rank { color: #fbbf24; font-size: 16px;}
+        .second .podium-rank { color: #9ca3af; }
+        .third .podium-rank { color: #b45309; }
+        .podium-name { font-size: 16px; font-weight: bold; color: var(--text-main); word-break: break-all; padding: 0 5px;}
+        
+        .view-results-btn {
+            position: absolute; top: 20px; right: 40px; background: #fbbf24; color: #000;
+            display: none; padding: 10px 20px; font-size: 14px;
+        }
+        .view-results-btn:hover { background: #f59e0b; }
+
+    </style>
+</head>
+<body>
+
+    <h1>🏆 競賽管理系統</h1>
+
+    <div class="nav-tabs">
+        <button class="tab-btn active" onclick="switchTab('manage')" id="tab-manage">⚙️ 管理與設定</button>
+        <button class="tab-btn" onclick="switchTab('bracket')" id="tab-bracket">📊 賽程表</button>
+    </div>
+
+    <button class="btn view-results-btn" id="showResultsBtn" onclick="showLeaderboard()">🏆 查看最終排名</button>
+
+    <div id="view-manage" class="view-section active">
+        <div class="manage-card">
+            <h2>參賽者名單</h2>
+            <p>請輸入參賽者姓名（每行一人，限制 2-10 人）。</p>
+            <textarea id="playerList" placeholder="隊伍A&#10;隊伍B&#10;隊伍C&#10;隊伍D&#10;隊伍E..."></textarea>
+            
+            <div class="action-buttons">
+                <button class="btn btn-primary" onclick="generateAndSwitch()">🎲 隨機產生賽程</button>
+                <button class="btn btn-success" onclick="exportData()">💾 匯出 JSON</button>
+                <button class="btn btn-warning" onclick="document.getElementById('fileInput').click()">📂 匯入 JSON</button>
+                <input type="file" id="fileInput" accept=".json" style="display:none" onchange="importData(this)">
+            </div>
+        </div>
+    </div>
+
+    <div id="view-bracket" class="view-section">
+        <div class="bracket-wrapper" id="bracket-root">
+            <svg id="bracket-lines"></svg>
+            </div>
+    </div>
+
+    <div class="modal-overlay" id="scoreModal">
+        <div class="modal-content">
+            <h3 class="modal-title">輸入比賽結果</h3>
+            <div class="score-input-group">
+                <span id="modal-p1-name">選手 1</span>
+                <input type="number" id="modal-p1-score" value="0">
+            </div>
+            <div class="score-input-group">
+                <span id="modal-p2-name">選手 2</span>
+                <input type="number" id="modal-p2-score" value="0">
+            </div>
+            <div class="action-buttons" style="margin-top:20px;">
+                <button class="btn btn-primary" onclick="confirmScore()">確認晉級</button>
+                <button class="btn btn-cancel" onclick="closeModal('scoreModal')">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="leaderboardModal">
+        <div class="modal-content" style="width: 400px; padding: 40px 20px;">
+            <h2 style="color: #fbbf24; font-size: 28px; margin: 0; text-align: center; letter-spacing: 2px;">賽事圓滿結束</h2>
+            <p style="text-align: center; color: var(--text-muted); margin-top: 5px;">最終榮耀榜</p>
+            
+            <div class="podium-container">
+                <div class="podium-place second">
+                    <div class="podium-rank">🥈 亞軍</div>
+                    <div class="podium-name" id="rank-2"></div>
+                </div>
+                <div class="podium-place first">
+                    <div class="podium-rank">🥇 冠軍</div>
+                    <div class="podium-name" id="rank-1"></div>
+                </div>
+                <div class="podium-place third">
+                    <div class="podium-rank">🥉 季軍</div>
+                    <div class="podium-name" id="rank-3"></div>
+                </div>
+            </div>
+            
+            <div class="action-buttons" style="margin-top:30px;">
+                <button class="btn btn-primary" onclick="closeModal('leaderboardModal')">返回賽程表</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+    let state = { players: [], matches: {} };
+    let activeMatchId = null;
+
+    document.getElementById('playerList').value = "隊伍 1\n隊伍 2\n隊伍 3\n隊伍 4\n隊伍 5";
+
+    function switchTab(tabId) {
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.view-section').forEach(view => view.classList.remove('active'));
+        
+        document.getElementById(`tab-${tabId}`).classList.add('active');
+        document.getElementById(`view-${tabId}`).classList.add('active');
+        
+        if (tabId === 'bracket') {
+            renderBracket();
+            checkTournamentCompletion(); // 切換時檢查是否要顯示右上角按鈕
+        }
+    }
+
+    function generateAndSwitch() {
+        const input = document.getElementById('playerList').value.trim();
+        const names = input.split('\n').map(n => n.trim()).filter(n => n !== "");
+        
+        if (names.length < 2 || names.length > 10) { alert("請輸入 2 到 10 名參賽者！"); return; }
+
+        for (let i = names.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [names[i], names[j]] = [names[j], names[i]];
+        }
+
+        state.players = names; state.matches = {};
+        document.getElementById('showResultsBtn').style.display = 'none'; // 重置時隱藏成績按鈕
+        
+        initMatches(names);
+        switchTab('bracket');
+    }
+
+    function initMatches(names) {
+        const n = names.length;
+        if (n === 2) {
+            createMatch("F", names[0], names[1], null, true, 1);
+        } else if (n === 3 || n === 4) {
+            let slots = Array(4).fill(null); let idx = 0;
+            for(let i=0; i<2; i++) if(idx < n) slots[i*2] = names[idx++];
+            for(let i=0; i<2; i++) if(idx < n) slots[i*2+1] = names[idx++];
+            createMatch("S1", slots[0], slots[1], "F", true, 1);
+            createMatch("S2", slots[2], slots[3], "F", false, 1);
+            createMatch("F", null, null, null, true, 2);
+            createMatch("T", null, null, null, false, "third");
+        } else if (n >= 5 && n <= 8) {
+            let slots = Array(8).fill(null); let idx = 0;
+            for(let i=0; i<4; i++) if(idx < n) slots[i*2] = names[idx++];
+            for(let i=0; i<4; i++) if(idx < n) slots[i*2+1] = names[idx++];
+            createMatch("Q1", slots[0], slots[1], "S1", true, 1);
+            createMatch("Q2", slots[2], slots[3], "S1", false, 1);
+            createMatch("Q3", slots[4], slots[5], "S2", true, 1);
+            createMatch("Q4", slots[6], slots[7], "S2", false, 1);
+            createMatch("S1", null, null, "F", true, 2);
+            createMatch("S2", null, null, "F", false, 2);
+            createMatch("F", null, null, null, true, 3);
+            createMatch("T", null, null, null, false, "third");
+        } else if (n >= 9 && n <= 10) {
+            let pCount = n - 8;
+            for(let i=0; i<pCount; i++) createMatch(`P${i+1}`, names[i*2], names[i*2+1], `Q${i+1}`, true, 1);
+            let qSlots = Array(8).fill(null);
+            qSlots[0] = `勝者 P1`; if (pCount === 2) qSlots[6] = `勝者 P2`; 
+            let emptyQIndices = pCount === 1 ? [1, 2, 3, 4, 5, 6, 7] : [1, 2, 3, 4, 5, 7];
+            let nameIdx = pCount * 2;
+            for(let i=0; i < emptyQIndices.length; i++) if (nameIdx < n) qSlots[emptyQIndices[i]] = names[nameIdx++];
+            createMatch("Q1", qSlots[0], qSlots[1], "S1", true, 2);
+            createMatch("Q2", qSlots[2], qSlots[3], "S1", false, 2);
+            createMatch("Q3", qSlots[4], qSlots[5], "S2", true, 2);
+            createMatch("Q4", qSlots[6], qSlots[7], "S2", false, 2);
+            createMatch("S1", null, null, "F", true, 3);
+            createMatch("S2", null, null, "F", false, 3);
+            createMatch("F", null, null, null, true, 4);
+            createMatch("T", null, null, null, false, "third");
+        }
+
+        Object.values(state.matches).forEach(m => {
+            if (m.p1 && !m.p2 && !m.p1.includes('勝者')) {
+                m.p2 = '輪空'; m.winner = m.p1; m.s1 = 'W'; m.s2 = ''; pushWinnerForward(m.id);
+            } else if (!m.p1 && m.p2 && !m.p2.includes('勝者')) {
+                m.p1 = '輪空'; m.winner = m.p2; m.s1 = ''; m.s2 = 'W'; pushWinnerForward(m.id);
+            }
+        });
+    }
+
+    function createMatch(id, p1, p2, nextId, isTop, round) {
+        state.matches[id] = { id, p1, p2, s1: null, s2: null, winner: null, nextId, isTop, round };
+    }
+
+    function renderBracket() {
+        const root = document.getElementById('bracket-root');
+        Array.from(root.children).forEach(child => { if(child.id !== 'bracket-lines') root.removeChild(child); });
+
+        if(Object.keys(state.matches).length === 0) {
+            root.innerHTML += '<div style="color:var(--text-muted); margin-top:50px;">請先至「管理與設定」產生賽程。</div>'; return;
+        }
+
+        const roundNums = [...new Set(Object.values(state.matches).map(m => m.round))].filter(r => r !== 'third').sort((a,b) => a-b);
+
+        roundNums.forEach(r => {
+            const col = document.createElement('div'); col.className = `round round-${r}`;
+            Object.values(state.matches).filter(m => m.round === r).forEach(match => col.appendChild(createMatchHTML(match)));
+            root.appendChild(col);
+        });
+
+        const thirdMatch = state.matches["T"];
+        if (thirdMatch) {
+            const tWrapper = document.createElement('div'); tWrapper.className = 'third-place-wrapper';
+            tWrapper.innerHTML = '<div class="match-label" style="font-weight:bold; color:var(--text-main);">季軍賽</div>';
+            tWrapper.appendChild(createMatchHTML(thirdMatch));
+            const finalsCol = root.querySelector(`.round-${roundNums[roundNums.length - 1]}`);
+            if(finalsCol) finalsCol.appendChild(tWrapper);
+        }
+        setTimeout(drawLines, 50);
+    }
+
+    function createMatchHTML(match) {
+        const container = document.createElement('div'); container.className = `match-container`; container.id = `match-container-${match.id}`;
+        const p1Display = match.p1 || '等待中...'; const p2Display = match.p2 || '等待中...';
+        const p1Class = match.winner === match.p1 && match.winner ? 'winner' : '';
+        const p2Class = match.winner === match.p2 && match.winner ? 'winner' : '';
+        const p1Empty = (!match.p1 || match.p1 === '輪空') ? 'empty' : '';
+        const p2Empty = (!match.p2 || match.p2 === '輪空') ? 'empty' : '';
+        const displayId = match.id === "T" ? "季軍" : match.id;
+
+        container.innerHTML = `
+            <div class="match-label">ID: ${displayId}</div>
+            <div class="match-card" onclick="openModal('${match.id}')">
+                <div class="player-row ${p1Class}">
+                    <span class="player-name ${p1Empty}">${p1Display}</span>
+                    <span class="player-score">${match.s1 !== null ? match.s1 : ''}</span>
+                </div>
+                <div class="player-row ${p2Class}">
+                    <span class="player-name ${p2Empty}">${p2Display}</span>
+                    <span class="player-score">${match.s2 !== null ? match.s2 : ''}</span>
+                </div>
+            </div>`;
+        return container;
+    }
+
+    function drawLines() {
+        const svg = document.getElementById('bracket-lines'); const root = document.getElementById('bracket-root');
+        if(!svg || !root || Object.keys(state.matches).length === 0) return;
+        svg.style.width = root.scrollWidth + 'px'; svg.style.height = root.scrollHeight + 'px'; svg.innerHTML = ''; 
+
+        Object.values(state.matches).forEach(m => {
+            if (m.nextId && state.matches[m.nextId]) {
+                const el1 = document.getElementById(`match-container-${m.id}`); const el2 = document.getElementById(`match-container-${m.nextId}`);
+                if (el1 && el2) {
+                    const card1 = el1.querySelector('.match-card').getBoundingClientRect(); const card2 = el2.querySelector('.match-card').getBoundingClientRect();
+                    const rootRect = root.getBoundingClientRect();
+                    const x1 = card1.right - rootRect.left + root.scrollLeft; const y1 = card1.top + card1.height / 2 - rootRect.top + root.scrollTop;
+                    const x2 = card2.left - rootRect.left + root.scrollLeft; const y2 = card2.top + card2.height / 2 - rootRect.top + root.scrollTop;
+                    const midX = x1 + (x2 - x1) / 2;
+                    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    path.setAttribute('d', `M ${x1} ${y1} H ${midX} V ${y2} H ${x2}`);
+                    path.setAttribute('stroke', '#4a4a5a'); path.setAttribute('stroke-width', '2'); path.setAttribute('fill', 'none'); path.setAttribute('stroke-linejoin', 'round');
+                    svg.appendChild(path);
+                }
+            }
+        });
+    }
+
+    window.addEventListener('resize', drawLines);
+
+    function openModal(id) {
+        const match = state.matches[id];
+        if (!match.p1 || !match.p2) { alert("目前對戰名單尚未確認！"); return; }
+        if (match.p1.includes('勝者') || match.p2.includes('勝者')) { alert("請先完成前置賽事！"); return; }
+        if (match.p2 === '輪空' || match.p1 === '輪空') { alert("此為輪空場次，選手自動晉級！"); return; }
+
+        activeMatchId = id;
+        document.getElementById('modal-p1-name').innerText = match.p1; document.getElementById('modal-p2-name').innerText = match.p2;
+        document.getElementById('modal-p1-score').value = match.s1 === 'W' ? 0 : (match.s1 || 0);
+        document.getElementById('modal-p2-score').value = match.s2 === 'L' ? 0 : (match.s2 || 0);
+        document.querySelector('#scoreModal .modal-title').innerText = id === 'T' ? "輸入季軍賽結果" : "輸入比賽結果";
+        document.getElementById('scoreModal').style.display = 'flex';
+    }
+
+    function closeModal(modalId) {
+        document.getElementById(modalId).style.display = 'none';
+        if (modalId === 'scoreModal') activeMatchId = null;
+    }
+
+    function confirmScore() {
+        const match = state.matches[activeMatchId];
+        const s1 = parseInt(document.getElementById('modal-p1-score').value); const s2 = parseInt(document.getElementById('modal-p2-score').value);
+        if (s1 === s2) { alert("單淘汰賽必須分出勝負！"); return; }
+
+        match.s1 = s1; match.s2 = s2; match.winner = s1 > s2 ? match.p1 : match.p2;
+        pushWinnerForward(activeMatchId);
+        closeModal('scoreModal');
+        renderBracket();
+        
+        // 每次輸入完比分，檢查是否全部結束 (但不自動彈出)
+        checkTournamentCompletion();
+    }
+
+    function pushWinnerForward(id) {
+        const match = state.matches[id]; const winner = match.winner; const loser = (winner === match.p1) ? match.p2 : match.p1;
+        if (match.nextId) {
+            const nextMatch = state.matches[match.nextId];
+            if (match.isTop) nextMatch.p1 = winner; else nextMatch.p2 = winner;
+        }
+        if (id === "S1" && state.matches["T"]) state.matches["T"].p1 = loser;
+        if (id === "S2" && state.matches["T"]) state.matches["T"].p2 = loser;
+    }
+
+    // ====== 結算與排行榜邏輯 ======
+    function checkTournamentCompletion() {
+        const finalMatch = state.matches["F"];
+        const thirdMatch = state.matches["T"];
+        
+        const isTwoPlayersOnly = state.players.length === 2;
+        let isComplete = false;
+
+        if (isTwoPlayersOnly) {
+            isComplete = finalMatch && finalMatch.winner;
+        } else {
+            isComplete = finalMatch && finalMatch.winner && thirdMatch && thirdMatch.winner;
+        }
+
+        if (isComplete) {
+            document.getElementById('showResultsBtn').style.display = 'block';
+            
+            // 計算名次
+            const champion = finalMatch.winner;
+            const runnerUp = finalMatch.winner === finalMatch.p1 ? finalMatch.p2 : finalMatch.p1;
+            const thirdPlace = isTwoPlayersOnly ? "無" : thirdMatch.winner;
+
+            document.getElementById('rank-1').innerText = champion;
+            document.getElementById('rank-2').innerText = runnerUp;
+            document.getElementById('rank-3').innerText = thirdPlace;
+        } else {
+            document.getElementById('showResultsBtn').style.display = 'none';
+        }
+    }
+
+    function showLeaderboard() {
+        document.getElementById('leaderboardModal').style.display = 'flex';
+    }
+
+    function exportData() {
+        if(Object.keys(state.matches).length === 0) { alert("目前沒有賽事資料可匯出！"); return; }
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state));
+        const a = document.createElement('a'); a.href = dataStr; a.download = "dark_tournament_record.json";
+        document.body.appendChild(a); a.click(); a.remove();
+    }
+
+    function importData(input) {
+        const file = input.files[0]; if(!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                state = JSON.parse(e.target.result);
+                if(state.players) document.getElementById('playerList').value = state.players.join('\n');
+                alert("資料匯入成功！"); switchTab('bracket');
+            } catch (error) { alert("檔案格式錯誤，無法讀取！"); }
+        };
+        reader.readAsText(file); input.value = ""; 
+    }
+</script>
+</body>
+</html>
